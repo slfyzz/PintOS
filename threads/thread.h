@@ -89,6 +89,8 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Effective Priority. */
     int initial_priority;               /* Base priority regardless of donation. */
+    int nice;                           /* how nice the thread is :) */
+    int recent_cpu;                     /* how much cpu time this thread receive recently*/
     int64_t wakeup_time;                /* End of time of thread's sleep period. */
     struct list_elem allelem;           /* List element for all threads list. */
     struct list_elem sleep_elem;        /* List of sleeping threads */

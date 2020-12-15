@@ -12,5 +12,6 @@ void insert (struct priority_schedular *ps, struct thread *to_be_added);
 struct thread *getMax (struct priority_schedular *ps);
 void remove (struct priority_schedular *ps, struct thread *to_be_removed);
 void update (struct priority_schedular *ps, struct thread *to_be_updated, int new_priority);
+int get_max_priority (struct priority_schedular *ps); 
 
 #endif 

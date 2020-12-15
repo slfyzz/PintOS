@@ -341,7 +341,6 @@ void thread_unblock_and_schedule(struct thread *thread_to_unblock){
   thread_unblock (thread_to_unblock);
   if (thread_current() != idle_thread && thread_current()->priority < thread_to_unblock->priority) {
      thread_yield();
-
   }
 
   //intr_set_level (old_level);
@@ -381,6 +380,9 @@ void
 thread_set_priority (int new_priority)
 {
   thread_current ()->priority = new_priority;
+  if (get_max_priority(&ready_list) > new_priority)
+    thread_yield();
+
 }
 
 /* Returns the current thread's priority. */
