@@ -174,6 +174,15 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+  if(thread_mlfqs) {
+    thread_current ()->recent_cpu = add(convert_to_fixed(1), thread_current ()->recent_cpu);
+    if(ticks % PRI_SLICE == 0) {
+      update_priority_mlqfs();
+    }
+    if(ticks % TIMER_FREQ == 0) { 
+      update_paramters_mlqfs();
+    }
+  }
   check_sleeping_threads (ticks);
   thread_tick ();
 }

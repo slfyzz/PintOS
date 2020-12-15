@@ -53,9 +53,12 @@ struct kernel_thread_frame
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
+static fixed_point load_avg; 
 
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
+#define NICE_MIN -20
+#define NICE_MAX  20
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
@@ -396,31 +399,32 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED)
 {
-  /* Not yet implemented. */
+  ASSERT(NICE_MIN <= nice && nice <= NICE_MAX);
+  thread_current()->nice = nice;
+  thread_current ()->priority = get_new_priority (thread_current ());
+  if (get_max_priority(&ready_list) > thread_current ()->priority)
+    thread_yield();
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void)
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void)
 {
-  /* Not yet implemented. */
-  return 0;
+  return convert_to_int_round( mul( convert_to_fixed (100), load_avg ) );;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void)
 {
-  /* Not yet implemented. */
-  return 0;
+  return convert_to_int_round( mul( convert_to_fixed (100), thread_current ()->recent_cpu ) );
 }
 
 
@@ -527,6 +531,13 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->initial_priority = priority;
+  if(is_thread (running_thread())) {
+    t->nice = thread_current ()->nice;
+    t->recent_cpu = thread_current ()->recent_cpu;
+  }else{
+    t->nice = 0;
+    t->recent_cpu = 0;
+  }
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -547,6 +558,35 @@ alloc_frame (struct thread *t, size_t size)
   return t->stack;
 }
 
+int get_new_priority (struct thread* thread) {
+  int priority = PRI_MAX - convert_to_int(div(thread->recent_cpu, convert_to_fixed(4))) - thread->nice * 2;
+  return priority < PRI_MIN ? PRI_MIN : priority > PRI_MAX ? PRI_MAX : priority;
+}
+
+void update_priority_mlqfs (void) {
+  for (struct list_elem *it = list_begin(&all_list); it != list_end(&all_list); it = list_next(it)) {
+    struct thread *cur = list_entry(it, struct thread, elem);
+    int new_priority = get_new_priority (cur);
+    if(cur->status == THREAD_READY) { 
+      update(&ready_list, cur, new_priority);
+    }else {
+      cur->priority = new_priority;
+    }
+  }
+}
+
+void update_paramters_mlqfs (void) {
+  // Updating load average
+  load_avg = add( mul(div(convert_to_fixed(59), convert_to_fixed(60)), load_avg),
+         div(convert_to_fixed(get_size(&ready_list) + (thread_current () != idle_thread)), convert_to_fixed(60)));
+  // Updating cpu_time for each thread
+  for (struct list_elem *it = list_begin(&all_list); it != list_end(&all_list); it = list_next(it)) {
+    struct thread *cur = list_entry(it, struct thread, elem);
+    fixed_point factor = div( mul(convert_to_fixed(2), load_avg), add( mul(convert_to_fixed(2), load_avg), convert_to_fixed(1) ));
+    cur->recent_cpu = add (mul (factor, load_avg), convert_to_fixed(cur->nice));
+  }
+}
+
 /* Chooses and returns the next thread to be scheduled.  Should
    return a thread from the run queue, unless the run queue is
    empty.  (If the running thread can continue running, then it
@@ -555,27 +595,12 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void)
 {
+  struct thread *next_to_run = getMax(&ready_list);
 
-  if (thread_mlfqs) {
-
-  } else {
-
-    struct thread *next_to_run = getMax(&ready_list);
-
-    if (next_to_run == NULL)
-      return idle_thread;
-
-    //printf(" test :   %s\n", next_to_run->name);
-
-    return next_to_run;
-  }
-
-
-  /*
-  if (list_empty (&ready_list))
+  if (next_to_run == NULL)
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);*/
+
+  return next_to_run;
 }
 
 /* Completes a thread switch by activating the new thread's page

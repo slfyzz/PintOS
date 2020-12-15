@@ -4,6 +4,7 @@
 #include <list.h>
 #include "threads/thread.h"
 struct priority_schedular {
+	int size;
 	struct list queues[PRI_MAX+1];
 };
 
