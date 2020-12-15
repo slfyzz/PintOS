@@ -133,7 +133,10 @@ void thread_exit (void) NO_RETURN;
 void thread_yield (void);
 void thread_unblock_and_schedule(struct thread *thread_to_unblock);
 void check_sleeping_threads (int64_t ticks);
-void update_priority_mlqfs (void);
+void update_priority_mlqfs (struct thread* cur, void* aux UNUSED);
+void update_recent_cpu_mlqfs (struct thread* cur, void* aux UNUSED);
+void update_load_avg_mlqfs (void);
+bool is_idle_thread(void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);

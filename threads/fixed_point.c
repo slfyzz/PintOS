@@ -24,9 +24,9 @@ fixed_point sub (fixed_point x, fixed_point y) {
 }
 
 fixed_point mul (fixed_point x, fixed_point y) {
-    return (int64_t) x * y / f;
+    return ((int64_t) x) * y / f;
 }
 
 fixed_point div (fixed_point x, fixed_point y) {
-    return  (int64_t) x * f / y;
+    return  ((int64_t) x) * f / y;
 }

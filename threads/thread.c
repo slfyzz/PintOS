@@ -444,6 +444,11 @@ bool wakeup_less_comp (const struct list_elem* a, const struct list_elem* b, voi
     return thread_a->wakeup_time < thread_b->wakeup_time;
 }
 
+bool is_idle_thread(void) {
+  return thread_current () == idle_thread;
+}
+
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -559,32 +564,30 @@ alloc_frame (struct thread *t, size_t size)
 }
 
 int get_new_priority (struct thread* thread) {
-  int priority = PRI_MAX - convert_to_int(div(thread->recent_cpu, convert_to_fixed(4))) - thread->nice * 2;
-  return priority < PRI_MIN ? PRI_MIN : priority > PRI_MAX ? PRI_MAX : priority;
+  fixed_point pri_max = convert_to_fixed(PRI_MAX);
+  fixed_point recent_cpu = div(thread->recent_cpu, convert_to_fixed(4));
+  fixed_point nice = mul(convert_to_fixed(thread->nice), convert_to_fixed(2));
+  int priority = convert_to_int_round(sub(sub(pri_max, recent_cpu), nice));
+  return (priority < PRI_MIN) ? PRI_MIN : ((priority > PRI_MAX) ? PRI_MAX : priority);
 }
 
-void update_priority_mlqfs (void) {
-  for (struct list_elem *it = list_begin(&all_list); it != list_end(&all_list); it = list_next(it)) {
-    struct thread *cur = list_entry(it, struct thread, elem);
-    int new_priority = get_new_priority (cur);
-    if(cur->status == THREAD_READY) { 
-      update(&ready_list, cur, new_priority);
-    }else {
-      cur->priority = new_priority;
-    }
+void update_priority_mlqfs (struct thread* cur, void* aux UNUSED) {
+  int new_priority = get_new_priority (cur);
+  if(cur->status == THREAD_READY) { 
+    update(&ready_list, cur, new_priority);
+  }else {
+    cur->priority = new_priority;
   }
 }
 
-void update_paramters_mlqfs (void) {
-  // Updating load average
+void update_recent_cpu_mlqfs (struct thread* cur, void* aux UNUSED) {
+  fixed_point factor = div( mul(convert_to_fixed(2), load_avg), add( mul(convert_to_fixed(2), load_avg), convert_to_fixed(1) ));
+  cur->recent_cpu = add (mul (factor, load_avg), convert_to_fixed(cur->nice));
+}
+
+void update_load_avg_mlqfs (void) {
   load_avg = add( mul(div(convert_to_fixed(59), convert_to_fixed(60)), load_avg),
          div(convert_to_fixed(get_size(&ready_list) + (thread_current () != idle_thread)), convert_to_fixed(60)));
-  // Updating cpu_time for each thread
-  for (struct list_elem *it = list_begin(&all_list); it != list_end(&all_list); it = list_next(it)) {
-    struct thread *cur = list_entry(it, struct thread, elem);
-    fixed_point factor = div( mul(convert_to_fixed(2), load_avg), add( mul(convert_to_fixed(2), load_avg), convert_to_fixed(1) ));
-    cur->recent_cpu = add (mul (factor, load_avg), convert_to_fixed(cur->nice));
-  }
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
