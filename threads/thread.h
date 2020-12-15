@@ -87,8 +87,11 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
+    int priority;                       /* Effective Priority. */
+    int initial_priority;               /* Base priority regardless of donation. */
+    int64_t wakeup_time;                /* End of time of thread's sleep period. */
     struct list_elem allelem;           /* List element for all threads list. */
+    struct list_elem sleep_elem;        /* List of sleeping threads */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -125,6 +128,8 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
+void thread_unblock_and_schedule(struct thread *thread_to_unblock);
+void check_sleeping_threads (int64_t ticks);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
@@ -138,4 +143,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+/* Compares thread a and thread b according to wakeup time */
+bool wakeup_less_comp (const struct list_elem* a, const struct list_elem* b, void* aux);
+/* Compares thread a and thread b according to priority time */
+bool priority_wait_less_comp (const struct list_elem* a, const struct list_elem* b, void* aux);
 #endif /* threads/thread.h */
