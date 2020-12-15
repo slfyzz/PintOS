@@ -28,6 +28,9 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* List of all processes that are currently sleeping */
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,6 +95,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -199,9 +203,20 @@ thread_create (const char *name, int priority,
   sf->ebp = 0;
 
   /* Add to run queue. */
-  thread_unblock (t);
+  thread_unblock_and_schedule(t);
 
   return tid;
+}
+
+/* Puts the current thread to sleep for a given amount of ticks. */
+void
+thread_sleep (int64_t wakeup_time) {
+  struct thread *curr = thread_current();
+  curr->wakeup_time = wakeup_time;
+  list_insert_ordered(&sleep_list, &curr->sleep_elem, wakeup_less_comp, NULL);
+  enum intr_level old_level = intr_disable ();
+  thread_block ();
+  intr_set_level (old_level);
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -314,6 +329,27 @@ thread_yield (void)
   intr_set_level (old_level);
 }
 
+/* Unblocks the the threads and if the unblocked thread has a higher priority
+ * than the current thread, it forces the current to yield. */
+void thread_unblock_and_schedule(struct thread *thread_to_unblock){
+  thread_unblock (thread_to_unblock);
+  if (thread_current() != idle_thread && thread_current()->priority < thread_to_unblock->priority) {
+	thread_yield();
+  }
+}
+
+/* Checks if there are any threads that need to be waken up. */
+void
+check_sleeping_threads (int64_t ticks)
+{
+    while (!list_empty(&sleep_list) && list_entry(list_front(&sleep_list), struct thread,
+            sleep_elem)->wakeup_time <= ticks)
+    {
+        struct thread *wakeup_thread = list_entry(list_pop_front(&sleep_list), struct thread, sleep_elem);
+        thread_unblock(wakeup_thread);
+    }
+}
+
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
 void
@@ -376,6 +412,23 @@ thread_get_recent_cpu (void)
   return 0;
 }
 
+
+/* Compares thread a and thread b according to priority time */
+bool priority_wait_less_comp (const struct list_elem* a, const struct list_elem* b, void* aux)
+{
+	struct thread *thread_a = list_entry(a, struct thread, elem);
+    struct thread *thread_b = list_entry(b, struct thread, elem);
+    return thread_a->priority < thread_b->priority;
+}
+
+/* Compares thread a and thread b according to wakeup time */
+bool wakeup_less_comp (const struct list_elem* a, const struct list_elem* b, void* aux)
+{
+	struct thread *thread_a = list_entry(a, struct thread, sleep_elem);
+    struct thread *thread_b = list_entry(b, struct thread, sleep_elem);
+    return thread_a->wakeup_time < thread_b->wakeup_time;
+}
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -462,6 +515,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->initial_priority = priority;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
