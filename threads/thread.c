@@ -194,6 +194,7 @@ thread_create (const char *name, int priority,
     t->nice = thread_current()->nice;
     t->priority = t->initial_priority = get_new_priority(t);
   }
+
   tid = t->tid = allocate_tid ();
 
   /* Stack frame for kernel_thread(). */
@@ -542,7 +543,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->initial_priority = priority;
   t->nice = 0;
   t->recent_cpu = 0;
-  
+  list_init(&t->hold_locks);
+  t->waiting_on = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -589,6 +591,39 @@ void update_load_avg_mlqfs (void) {
   load_avg = add(div_int(mul_int(load_avg, 59), 60), div_int(convert_to_fixed(get_size(&ready_list) + (thread_current () != idle_thread)), 60));
 }
 
+void
+thread_lock_donation(struct lock *lock) {
+  
+  ASSERT(lock != NULL);
+  ASSERT(lock->holder != NULL);
+  
+  struct thread *running_thread = lock->holder;
+  for (int i = 0; i < DON_DEPTH && running_thread->priority < thread_current()->priority; ++i) {
+    if (running_thread->waiting_on == NULL && running_thread->status == THREAD_READY) {
+      update(&ready_list, running_thread, thread_current()->priority);
+      break;
+    }
+    running_thread->priority = thread_current()->priority;
+    running_thread = running_thread->waiting_on->holder;
+  }
+  thread_current() -> waiting_on = lock;
+}
+
+void 
+thread_lock_released(struct lock *lock) {
+  
+  struct list *cur_list = &thread_current()->hold_locks;
+  list_remove(&lock->lock_elem);
+  thread_current()->priority = thread_current()->initial_priority;
+
+  for (struct list_elem *itr = list_begin(cur_list); itr != list_end(cur_list); itr = list_next(itr)) {
+     struct list *blocked_thread_list = &list_entry(itr, struct lock, lock_elem)->semaphore.waiters;
+     struct thread *max_thread = list_entry(list_max(blocked_thread_list, priority_wait_less_comp, NULL), struct thread, elem);
+     if (max_thread->priority > thread_current()->priority) {
+       thread_current()->priority = max_thread->priority;
+     }
+  }
+}
 /* Chooses and returns the next thread to be scheduled.  Should
    return a thread from the run queue, unless the run queue is
    empty.  (If the running thread can continue running, then it
