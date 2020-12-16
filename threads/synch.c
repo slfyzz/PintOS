@@ -183,10 +183,11 @@ void
 lock_init (struct lock *lock)
 {
   ASSERT (lock != NULL);
-
+  
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
 }
+
 
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
@@ -203,8 +204,13 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  sema_down (&lock->semaphore);
+  if (!sema_try_down(&lock->semaphore)) {
+      thread_lock_donation(lock);
+      sema_down(&lock->semaphore);
+  }
   lock->holder = thread_current ();
+  thread_current ()->waiting_on = NULL;
+  list_push_back(&thread_current ()-> hold_locks, &lock->lock_elem);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -220,10 +226,13 @@ lock_try_acquire (struct lock *lock)
 
   ASSERT (lock != NULL);
   ASSERT (!lock_held_by_current_thread (lock));
+  ASSERT (thread_current()->waiting_on == NULL);
 
   success = sema_try_down (&lock->semaphore);
-  if (success)
+  if (success){
     lock->holder = thread_current ();
+    list_push_back(&thread_current ()-> hold_locks, &lock->lock_elem);
+  }
   return success;
 }
 
@@ -239,6 +248,7 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
+  thread_lock_released(lock);
   sema_up (&lock->semaphore);
 }
 

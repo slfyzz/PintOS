@@ -92,6 +92,8 @@ struct thread
     int initial_priority;               /* Base priority regardless of donation. */
     int nice;                           /* how nice the thread is :) */
     fixed_point recent_cpu;             /* how much cpu time this thread receive recently*/
+    struct list hold_locks;             /* List of locks that the thread holds */
+    struct lock *waiting_on;            /* The lock that the thraed currently waiting for */
     int64_t wakeup_time;                /* End of time of thread's sleep period. */
     struct list_elem allelem;           /* List element for all threads list. */
     struct list_elem sleep_elem;        /* List of sleeping threads */
@@ -136,6 +138,8 @@ void check_sleeping_threads (int64_t ticks);
 void update_priority_mlqfs (struct thread* cur, void* aux UNUSED);
 void update_recent_cpu_mlqfs (struct thread* cur, void* aux UNUSED);
 void update_load_avg_mlqfs (void);
+void thread_lock_donation(struct lock *lock);
+void thread_lock_released(struct lock *lock);
 bool is_idle_thread(void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
