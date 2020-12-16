@@ -189,6 +189,11 @@ thread_create (const char *name, int priority,
 
   /* Initialize thread. */
   init_thread (t, name, priority);
+  if (thread_mlfqs) {
+    t->recent_cpu = thread_current()->recent_cpu;
+    t->nice = thread_current()->nice;
+    t->priority = t->initial_priority = get_new_priority(t);
+  }
   tid = t->tid = allocate_tid ();
 
   /* Stack frame for kernel_thread(). */
@@ -338,15 +343,15 @@ thread_yield (void)
 void thread_unblock_and_schedule(struct thread *thread_to_unblock){
   enum intr_level old_level;
 
-  //old_level = intr_disable ();
-
-
+  old_level = intr_disable ();
   thread_unblock (thread_to_unblock);
-  if (thread_current() != idle_thread && thread_current()->priority < thread_to_unblock->priority) {
+  
+  struct thread *cur = thread_current();
+  if (cur != idle_thread && cur->priority < thread_to_unblock->priority) {
      thread_yield();
   }
 
-  //intr_set_level (old_level);
+  intr_set_level (old_level);
 }
 
 /* Checks if there are any threads that need to be waken up. */
@@ -385,7 +390,6 @@ thread_set_priority (int new_priority)
   thread_current ()->priority = new_priority;
   if (get_max_priority(&ready_list) > new_priority)
     thread_yield();
-
 }
 
 /* Returns the current thread's priority. */
@@ -536,13 +540,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->initial_priority = priority;
-  if(is_thread (running_thread())) {
-    t->nice = thread_current ()->nice;
-    t->recent_cpu = thread_current ()->recent_cpu;
-  }else{
-    t->nice = 0;
-    t->recent_cpu = 0;
-  }
+  t->nice = 0;
+  t->recent_cpu = 0;
+  
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -565,9 +565,9 @@ alloc_frame (struct thread *t, size_t size)
 
 int get_new_priority (struct thread* thread) {
   fixed_point pri_max = convert_to_fixed(PRI_MAX);
-  fixed_point recent_cpu = div(thread->recent_cpu, convert_to_fixed(4));
-  fixed_point nice = mul(convert_to_fixed(thread->nice), convert_to_fixed(2));
-  int priority = convert_to_int_round(sub(sub(pri_max, recent_cpu), nice));
+  fixed_point recent_cpu = div_int(thread->recent_cpu, 4);
+  int nice = thread->nice * 2;
+  int priority = convert_to_int(sub_int(sub(pri_max, recent_cpu), nice));
   return (priority < PRI_MIN) ? PRI_MIN : ((priority > PRI_MAX) ? PRI_MAX : priority);
 }
 
@@ -581,11 +581,12 @@ void update_priority_mlqfs (struct thread* cur, void* aux UNUSED) {
 }
 
 void update_recent_cpu_mlqfs (struct thread* cur, void* aux UNUSED) {
-  cur->recent_cpu = mul(div(load_avg * 2, load_avg * 2 + convert_to_fixed(1)), cur->recent_cpu) + convert_to_fixed(cur->nice);
+  fixed_point double_load_avg = mul_int(load_avg, 2);
+  cur->recent_cpu = add_int(mul(div(double_load_avg, add_int(double_load_avg, 1)), cur->recent_cpu), cur->nice);
 }
 
 void update_load_avg_mlqfs (void) {
-  load_avg = 59 * load_avg / 60  + convert_to_fixed(get_size(&ready_list) + (thread_current () != idle_thread)) / 60;
+  load_avg = add(div_int(mul_int(load_avg, 59), 60), div_int(convert_to_fixed(get_size(&ready_list) + (thread_current () != idle_thread)), 60));
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

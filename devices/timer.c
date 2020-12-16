@@ -175,18 +175,22 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   if(thread_mlfqs) {
+    
     if(!is_idle_thread()) {
-      thread_current ()->recent_cpu = add(convert_to_fixed(1), thread_current ()->recent_cpu);
+      thread_current ()->recent_cpu = add_int(thread_current ()->recent_cpu, 1);
     }
 
     if(ticks % TIMER_FREQ == 0) {
       update_load_avg_mlqfs();
       thread_foreach(update_recent_cpu_mlqfs, NULL);
+      thread_foreach(update_priority_mlqfs, NULL);
     }
 
     if(ticks % PRI_SLICE == 0) {
-      thread_foreach(update_priority_mlqfs, NULL);
+      update_priority_mlqfs(thread_current(), NULL);
     }
+
+    
   }
   check_sleeping_threads (ticks);
   thread_tick ();
