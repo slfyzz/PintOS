@@ -178,13 +178,13 @@ timer_interrupt (struct intr_frame *args UNUSED)
     if(!is_idle_thread()) {
       thread_current ()->recent_cpu = add(convert_to_fixed(1), thread_current ()->recent_cpu);
     }
-
+    
     if(ticks % TIMER_FREQ == 0) {
+	  update_load_avg_mlqfs();
       thread_foreach(update_recent_cpu_mlqfs, NULL);
-      update_load_avg_mlqfs();
     }
-
-    if(ticks % PRI_SLICE == 0) {
+    
+	if(ticks % PRI_SLICE == 0) {
       thread_foreach(update_priority_mlqfs, NULL);
     }
   }

@@ -536,9 +536,12 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->initial_priority = priority;
-  if(is_thread (running_thread())) {
-    t->nice = thread_current ()->nice;
-    t->recent_cpu = thread_current ()->recent_cpu;
+  if(thread_mlfqs && is_thread (running_thread())) {
+	old_level = intr_disable();
+    t->nice = thread_current()->nice;
+    t->recent_cpu = thread_current()->recent_cpu;
+    t->priority = thread_current()->priority;
+    intr_set_level(old_level);
   }else{
     t->nice = 0;
     t->recent_cpu = 0;
@@ -563,12 +566,11 @@ alloc_frame (struct thread *t, size_t size)
   return t->stack;
 }
 
-int get_new_priority (struct thread* thread) {
-  fixed_point pri_max = convert_to_fixed(PRI_MAX);
-  fixed_point recent_cpu = div(thread->recent_cpu, convert_to_fixed(4));
-  fixed_point nice = mul(convert_to_fixed(thread->nice), convert_to_fixed(2));
-  int priority = convert_to_int_round(sub(sub(pri_max, recent_cpu), nice));
-  return (priority < PRI_MIN) ? PRI_MIN : ((priority > PRI_MAX) ? PRI_MAX : priority);
+int get_new_priority (struct thread* t) {
+	int priority = convert_to_int(convert_to_fixed(PRI_MAX) - t->recent_cpu / 4 - convert_to_fixed(t->nice));
+	if (priority > PRI_MAX) priority = PRI_MAX;
+	else if (priority < PRI_MIN) priority = PRI_MIN;
+	return priority;
 }
 
 void update_priority_mlqfs (struct thread* cur, void* aux UNUSED) {
@@ -580,9 +582,10 @@ void update_priority_mlqfs (struct thread* cur, void* aux UNUSED) {
   }
 }
 
-void update_recent_cpu_mlqfs (struct thread* cur, void* aux UNUSED) {
-  fixed_point factor = div( mul(convert_to_fixed(2), load_avg), add( mul(convert_to_fixed(2), load_avg), convert_to_fixed(1) ));
-  cur->recent_cpu = add (mul (factor, load_avg), convert_to_fixed(cur->nice));
+
+void update_recent_cpu_mlqfs (struct thread* t, void* aux UNUSED) {
+  //fixed_point factor = div(mul(convert_to_fixed(2), load_avg), add( mul(convert_to_fixed(2), load_avg), convert_to_fixed(1) ));
+  t->recent_cpu = mul(div(load_avg * 2, load_avg * 2 + convert_to_fixed(1)), t->recent_cpu) + convert_to_fixed(t->nice);
 }
 
 void update_load_avg_mlqfs (void) {
