@@ -180,8 +180,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
     }
 
     if(ticks % TIMER_FREQ == 0) {
-      thread_foreach(update_recent_cpu_mlqfs, NULL);
       update_load_avg_mlqfs();
+      thread_foreach(update_recent_cpu_mlqfs, NULL);
     }
 
     if(ticks % PRI_SLICE == 0) {

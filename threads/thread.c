@@ -581,13 +581,11 @@ void update_priority_mlqfs (struct thread* cur, void* aux UNUSED) {
 }
 
 void update_recent_cpu_mlqfs (struct thread* cur, void* aux UNUSED) {
-  fixed_point factor = div( mul(convert_to_fixed(2), load_avg), add( mul(convert_to_fixed(2), load_avg), convert_to_fixed(1) ));
-  cur->recent_cpu = add (mul (factor, load_avg), convert_to_fixed(cur->nice));
+  cur->recent_cpu = mul(div(load_avg * 2, load_avg * 2 + convert_to_fixed(1)), cur->recent_cpu) + convert_to_fixed(cur->nice);
 }
 
 void update_load_avg_mlqfs (void) {
-  load_avg = add( mul(div(convert_to_fixed(59), convert_to_fixed(60)), load_avg),
-         div(convert_to_fixed(get_size(&ready_list) + (thread_current () != idle_thread)), convert_to_fixed(60)));
+  load_avg = 59 * load_avg / 60  + convert_to_fixed(get_size(&ready_list) + (thread_current () != idle_thread)) / 60;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
