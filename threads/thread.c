@@ -605,8 +605,12 @@ thread_lock_donation(struct lock *lock) {
   
   struct thread *running_thread = lock->holder;
   for (int i = 0; i < DON_DEPTH && running_thread->priority < thread_current()->priority; ++i) {
-    if (running_thread->waiting_on == NULL && running_thread->status == THREAD_READY) {
-      update(&ready_list, running_thread, thread_current()->priority);
+    if (running_thread->waiting_on == NULL) {
+      if(running_thread->status == THREAD_READY) {
+        update(&ready_list, running_thread, thread_current()->priority);
+      }else{
+        running_thread->priority = thread_current()->priority;
+      }
       break;
     }
     running_thread->priority = thread_current()->priority;
