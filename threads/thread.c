@@ -388,7 +388,13 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+  int init = thread_current()->initial_priority;
+  thread_current()->initial_priority = new_priority;
+
+  if(init == thread_current()->priority || thread_current()->priority < new_priority) {
+    thread_current()->priority = new_priority;
+  }
+
   if (get_max_priority(&ready_list) > new_priority)
     thread_yield();
 }
