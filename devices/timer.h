@@ -6,6 +6,7 @@
 
 /* Number of timer interrupts per second. */
 #define TIMER_FREQ 100
+/* Update current thread priority every 4 ticks for advanced scheduler. */
 #define PRI_SLICE 4
 
 void timer_init (void);
