@@ -86,17 +86,17 @@ timer_elapsed (int64_t then)
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
-void
-timer_sleep (int64_t ticks) 
+void 
+timer_sleep (int64_t ticks)
 {
   int64_t start = timer_ticks ();
 
-  ASSERT (intr_get_level () == INTR_ON);
-  
-  if(ticks > 0) {
-	thread_sleep(start + ticks);
+  ASSERT(intr_get_level() == INTR_ON);
+
+  if (ticks > 0)
+  {
+    thread_sleep(start + ticks);
   }
-	  
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -168,32 +168,39 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
-  if(thread_mlfqs) {
-    
-    if(!is_idle_thread()) {
-      thread_current ()->recent_cpu = add_int(thread_current ()->recent_cpu, 1);
+  if (thread_mlfqs)
+  {
+    /* 
+     Every tick we increment the recent_cpu parameter for the currently running thread by one unless it is the idle thread,
+     We have also choose to update the load_avg (thread-independent parameter), recent_cpu and priority for each thread periodically
+     every second i.e every multiple of TIMER_FREQ. Additionally, We update the priority of the current thread every 4th tick i.e 
+     every multiple of PRI_SLICE.
+    */
+    if (!is_idle_thread())
+    {
+      thread_current()->recent_cpu = add_int(thread_current()->recent_cpu, 1);
     }
 
-    if(ticks % TIMER_FREQ == 0) {
-      update_load_avg_mlqfs();
-      thread_foreach(update_recent_cpu_mlqfs, NULL);
-      thread_foreach(update_priority_mlqfs, NULL);
+    if (ticks % TIMER_FREQ == 0)
+    {
+      update_load_avg_mlfqs();
+      thread_foreach(update_recent_cpu_mlfqs, NULL);
+      thread_foreach(update_priority_mlfqs, NULL);
     }
 
-    if(ticks % PRI_SLICE == 0) {
-      update_priority_mlqfs(thread_current(), NULL);
+    if (ticks % PRI_SLICE == 0)
+    {
+      update_priority_mlfqs(thread_current(), NULL);
     }
-
-    
   }
-  check_sleeping_threads (ticks);
-  thread_tick ();
+  check_sleeping_threads(ticks);
+  thread_tick();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
