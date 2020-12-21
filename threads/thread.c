@@ -403,6 +403,7 @@ thread_set_priority (int new_priority)
      is on this thread so we set the effective priority to the new priority, otherwise,
      we have to maximize between the highest donation i.e current thread effective priority 
      and the new priority. */
+  enum intr_level old_level = intr_disable();
   if (thread_current()->initial_priority == thread_current()->priority || thread_current()->priority < new_priority)
   {
     thread_current()->priority = new_priority;
@@ -411,6 +412,7 @@ thread_set_priority (int new_priority)
 
   if (peek_max_priority(&ready_list) > new_priority)
     thread_yield();
+  intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -425,10 +427,12 @@ void
 thread_set_nice (int nice UNUSED) 
 {
   ASSERT(NICE_MIN <= nice && nice <= NICE_MAX);
+  enum intr_level old_level = intr_disable();
   thread_current()->nice = nice;
   thread_current()->priority = compute_new_priority(thread_current());
   if (peek_max_priority(&ready_list) > thread_current()->priority)
     thread_yield();
+  intr_set_level(old_level);
 }
 
 /* Returns the current thread's nice value. */
