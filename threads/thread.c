@@ -231,8 +231,8 @@ thread_sleep(int64_t wakeup_time)
 {
   struct thread *curr = thread_current();
   curr->wakeup_time = wakeup_time;
-  list_insert_ordered(&sleep_list, &curr->sleep_elem, wakeup_less_comp, NULL);
   enum intr_level old_level = intr_disable();
+  list_insert_ordered(&sleep_list, &curr->sleep_elem, wakeup_less_comp, NULL);
   thread_block();
   intr_set_level(old_level);
 }
